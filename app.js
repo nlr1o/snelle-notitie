@@ -3,7 +3,7 @@
 
   const cfg = window.APP_CONFIG || {};
   const $ = (id) => document.getElementById(id);
-  const SCOPES = ['Files.ReadWrite', 'Mail.Send'];
+  const SCOPES = ['User.Read', 'Files.ReadWrite', 'Mail.Send'];
   const GRAPH = 'https://graph.microsoft.com/v1.0';
 
   // ---------- opslag op het toestel ----------
@@ -21,13 +21,29 @@
   };
 
   // Map, werkadres en label horen bij het ingelogde account; elke gebruiker heeft zijn eigen instellingen.
-  const settings = { vaultId: '', vaultPath: '', workEmail: '', tag: 'brain', lang: store.get('lang', 'nl-NL') };
+  const settings = { vaultId: '', vaultPath: '', workEmail: '', tag: 'brain', lang: 'nl-NL' };
   const userKey = (key) => key + '.' + (account ? account.homeAccountId : 'anon');
   function loadUserSettings() {
     settings.vaultId = store.get(userKey('vaultId'), '');       // id van de gekozen OneDrive-map
     settings.vaultPath = store.get(userKey('vaultPath'), '');   // leesbaar pad, alleen voor weergave
     settings.workEmail = store.get(userKey('workEmail'), '');
     settings.tag = store.get(userKey('tag'), 'brain');          // label achter de + in het afzenderadres
+    mailAddress = store.get(userKey('mailAddress'), '');
+  }
+
+  // Het adres waarmee je inlogt kan een alias zijn. Mail gaat vanaf het hoofdadres van je mailbox,
+  // dus dat vragen we bij Microsoft op en gebruiken we als basis voor het afzenderadres.
+  let mailAddress = '';
+  const ownAddress = () => mailAddress || (account ? account.username : '');
+  async function loadMailAddress(token) {
+    try {
+      const me = await graph('GET', '/me?$select=mail,userPrincipalName', token);
+      const address = me.mail || me.userPrincipalName || '';
+      if (address.includes('@')) {
+        mailAddress = address;
+        store.set(userKey('mailAddress'), mailAddress);
+      }
+    } catch { /* dan blijft het inlogadres de basis */ }
   }
 
   // ---------- status ----------
@@ -138,8 +154,9 @@
   async function refreshSession() {
     if (!navigator.onLine) return;
     try {
-      await msalApp.acquireTokenSilent({ scopes: SCOPES, account });
+      const result = await msalApp.acquireTokenSilent({ scopes: SCOPES, account });
       session.remove('reauth');
+      loadMailAddress(result.accessToken);
     } catch (e) {
       if (isNetworkError(e) || session.get('reauth')) return;
       session.set('reauth', '1');
@@ -221,13 +238,14 @@
 
   // Je eigen adres met het label erachter: naam+label@domein.
   function senderAddress(tag) {
-    const own = account ? account.username : '';
+    const own = ownAddress();
     const at = own.lastIndexOf('@');
     if (!tag || at < 1) return own;
     return own.slice(0, at).split('+')[0] + '+' + tag + own.slice(at);
   }
 
   async function sendWerk(text, token) {
+    await loadMailAddress(token);
     const note = buildNote(text);
     const message = {
       subject: '[' + (settings.tag || 'brain') + '] ' + note.name,
@@ -464,9 +482,8 @@
     renderVaultPath();
     $('workEmail').value = settings.workEmail;
     $('tag').value = settings.tag;
-    $('lang').value = settings.lang;
     // Het adres waarmee je bent ingelogd staat vast; alleen het label ertussen is aanpasbaar.
-    const own = account ? account.username : '';
+    const own = ownAddress();
     const at = own.lastIndexOf('@');
     $('tagPrefix').textContent = (at > 0 ? own.slice(0, at).split('+')[0] : own) + '+';
     $('tagSuffix').textContent = at > 0 ? own.slice(at) : '';
@@ -496,10 +513,6 @@
     renderSenderPreview();
   });
   $('tag').addEventListener('blur', () => { $('tag').value = settings.tag; });
-  $('lang').addEventListener('change', () => {
-    settings.lang = $('lang').value;
-    store.set('lang', settings.lang);
-  });
   $('logoutAsk').onclick = () => askLogout(true);
   $('logoutNo').onclick = () => askLogout(false);
   $('logoutYes').onclick = logout;
