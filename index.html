@@ -19,17 +19,34 @@
     body[data-dest="werk"] { --accent: #2463d6; --accent-text: #ffffff; }
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; }
   body {
     background: var(--bg); color: var(--text);
     font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     display: flex; flex-direction: column;
     padding: max(12px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
-    max-width: 640px; margin: 0 auto; gap: 12px;
+    max-width: 640px; margin: 0 auto;
   }
-  header { display: flex; align-items: center; justify-content: space-between; }
-  h1 { font-size: 18px; margin: 0; font-weight: 600; }
   button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+
+  /* ---------- inlogscherm ---------- */
+  #gate { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+          text-align: center; gap: 14px; padding: 0 8px; }
+  #gate img { width: 88px; height: 88px; border-radius: 22px; }
+  #gate h1 { font-size: 24px; margin: 6px 0 0; }
+  #gate p { margin: 0; color: var(--muted); max-width: 30ch; }
+  #gateLogin { display: flex; align-items: center; gap: 12px; margin-top: 14px; padding: 13px 20px;
+               background: #ffffff; color: #2b2b2b; border: 1px solid #8c8c8c; border-radius: 10px;
+               font-weight: 600; font-size: 16px; }
+  #gateLogin:disabled { opacity: .6; }
+  #gateMsg { min-height: 22px; font-size: 14px; color: var(--danger); max-width: 34ch; }
+  #gate .fine { font-size: 12px; max-width: 36ch; }
+
+  /* ---------- app ---------- */
+  #app { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  header { display: flex; align-items: center; justify-content: space-between; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 600; }
   .icon-btn { width: 44px; height: 44px; border-radius: 12px; font-size: 20px; color: var(--muted); }
   .icon-btn:active { background: var(--panel); }
 
@@ -37,11 +54,6 @@
          border: 1px solid var(--line); border-radius: 14px; padding: 4px; gap: 4px; }
   .seg button { padding: 12px; border-radius: 10px; font-weight: 600; color: var(--muted); }
   .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
-
-  .banner { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--accent);
-            border-radius: 12px; padding: 10px 12px; font-size: 14px; color: var(--muted); }
-  .banner button { color: var(--accent); font-weight: 600; padding: 4px 0; }
-  .banner.warn { border-left-color: #e0a100; }
 
   .editor { flex: 1; min-height: 160px; display: flex; flex-direction: column; background: var(--panel);
             border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
@@ -65,11 +77,12 @@
   #status.ok { color: var(--accent); }
   #status.err { color: var(--danger); }
 
+  /* ---------- dialogen ---------- */
   dialog { width: min(92vw, 480px); border: 1px solid var(--line); border-radius: 16px;
            background: var(--panel); color: var(--text); padding: 18px; }
   dialog::backdrop { background: rgba(0, 0, 0, .55); }
   dialog h2 { margin: 0 0 12px; font-size: 17px; }
-  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  label, .label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
   input, select { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
                   background: var(--bg); color: var(--text); font: inherit; }
   input.title { background: var(--panel); border-radius: 14px; padding: 13px 14px; font-weight: 600; outline: 0; }
@@ -79,46 +92,80 @@
   .row { display: flex; gap: 10px; margin-top: 18px; }
   .row button { flex: 1; padding: 12px; border-radius: 10px; font-weight: 600; border: 1px solid var(--line); }
   .row .primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  .row button:disabled { opacity: .5; }
   #account { font-size: 13px; color: var(--muted); margin-top: 14px; }
   #account button { color: var(--accent); font-weight: 600; }
+
+  .pathrow { display: flex; gap: 8px; align-items: stretch; }
+  #vaultPathView { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+                   background: var(--bg); overflow-wrap: anywhere; font-size: 14px; }
+  #browse { padding: 0 14px; border-radius: 10px; border: 1px solid var(--accent); color: var(--accent);
+            font-weight: 600; white-space: nowrap; }
+
+  #crumbs { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; margin-bottom: 8px; }
+  #folderList { height: min(46vh, 340px); overflow-y: auto; border: 1px solid var(--line); border-radius: 10px;
+                background: var(--bg); }
+  #folderList button { display: flex; width: 100%; gap: 10px; align-items: center; text-align: left;
+                       padding: 13px 12px; border-bottom: 1px solid var(--line); }
+  #folderList button:last-child { border-bottom: 0; }
+  #folderList button:active { background: var(--panel); }
+  #folderList .empty { padding: 16px 12px; color: var(--muted); font-size: 14px; }
 </style>
 </head>
 <body data-dest="prive">
-  <header>
+
+  <!-- Inlogscherm: zichtbaar zolang je niet bent ingelogd -->
+  <section id="gate" hidden>
+    <img src="icon-192.png" alt="">
     <h1>Snelle notitie</h1>
-    <button class="icon-btn" id="openSettings" aria-label="Instellingen">⚙</button>
-  </header>
+    <p>Spreek of typ een notitie en stuur hem naar je privé- of werk-vault.</p>
+    <button id="gateLogin">
+      <svg width="20" height="20" viewBox="0 0 21 21" aria-hidden="true">
+        <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+        <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+      </svg>
+      Inloggen met Microsoft
+    </button>
+    <div id="gateMsg" role="alert"></div>
+    <p class="fine">De app gebruikt je account alleen om notities in je eigen OneDrive te zetten en vanaf je eigen adres te mailen. Er wordt niets op een server bewaard.</p>
+  </section>
 
-  <div class="seg" role="group" aria-label="Bestemming">
-    <button id="destPrive" aria-pressed="true">Privé</button>
-    <button id="destWerk" aria-pressed="false">Werk</button>
-  </div>
+  <!-- De app zelf: zichtbaar na het inloggen -->
+  <main id="app" hidden>
+    <header>
+      <h1>Snelle notitie</h1>
+      <button class="icon-btn" id="openSettings" aria-label="Instellingen">⚙</button>
+    </header>
 
-  <div class="banner warn" id="setupBanner" hidden></div>
-  <div class="banner" id="loginBanner" hidden>
-    Log in met je Microsoft-account om notities te versturen. <button id="login">Inloggen</button>
-  </div>
+    <div class="seg" role="group" aria-label="Bestemming">
+      <button id="destPrive" aria-pressed="true">Privé</button>
+      <button id="destWerk" aria-pressed="false">Werk</button>
+    </div>
 
-  <input id="title" class="title" aria-label="Onderwerp" placeholder="Onderwerp (optioneel)"
-         autocomplete="off" autocapitalize="sentences" maxlength="80" enterkeyhint="done">
+    <input id="title" class="title" aria-label="Onderwerp" placeholder="Onderwerp (optioneel)"
+           autocomplete="off" autocapitalize="sentences" maxlength="80" enterkeyhint="done">
 
-  <div class="editor">
-    <textarea id="text" placeholder="Typ of spreek je notitie in…" autocapitalize="sentences"></textarea>
-    <div id="interim" aria-live="polite"></div>
-  </div>
+    <div class="editor">
+      <textarea id="text" placeholder="Typ of spreek je notitie in…" autocapitalize="sentences"></textarea>
+      <div id="interim" aria-live="polite"></div>
+    </div>
 
-  <div id="status" role="status"></div>
+    <div id="status" role="status"></div>
 
-  <div class="actions">
-    <button id="mic" aria-pressed="false" aria-label="Spraak opnemen">🎤</button>
-    <button id="send">Verzend naar Privé</button>
-  </div>
+    <div class="actions">
+      <button id="mic" aria-pressed="false" aria-label="Spraak opnemen">🎤</button>
+      <button id="send">Verzend naar Privé</button>
+    </div>
+  </main>
 
   <dialog id="settings">
     <h2>Instellingen</h2>
-    <label for="vaultPath">Map in je privé-OneDrive</label>
-    <input id="vaultPath" autocomplete="off" spellcheck="false">
-    <div class="hint">Pad vanaf de hoofdmap van OneDrive naar de Inbox van je vault.</div>
+    <div class="label">Map voor privé-notities (in je OneDrive)</div>
+    <div class="pathrow">
+      <div id="vaultPathView"></div>
+      <button id="browse">Map kiezen</button>
+    </div>
+    <div class="hint">Kies de Inbox-map van je Obsidian-vault.</div>
 
     <label for="workEmail">Werk-mailadres</label>
     <input id="workEmail" type="email" autocomplete="off" placeholder="henk+werkbrain@werkdomein.nl">
@@ -134,6 +181,16 @@
     <div class="row">
       <button id="cancelSettings">Annuleren</button>
       <button id="saveSettings" class="primary">Opslaan</button>
+    </div>
+  </dialog>
+
+  <dialog id="picker">
+    <h2>Kies de map voor je notities</h2>
+    <div id="crumbs"></div>
+    <div id="folderList"></div>
+    <div class="row">
+      <button id="pickCancel">Annuleren</button>
+      <button id="pickChoose" class="primary">Kies deze map</button>
     </div>
   </dialog>
 

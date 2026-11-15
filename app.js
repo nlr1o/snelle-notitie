@@ -15,9 +15,15 @@
     },
     set(key, value) { try { localStorage.setItem('qc.' + key, value); } catch { /* geen opslag */ } }
   };
+  const session = {
+    get(key) { try { return sessionStorage.getItem('qc.' + key); } catch { return null; } },
+    set(key, value) { try { sessionStorage.setItem('qc.' + key, value); } catch { /* geen opslag */ } },
+    remove(key) { try { sessionStorage.removeItem('qc.' + key); } catch { /* geen opslag */ } }
+  };
 
   const settings = {
-    vaultPath: store.get('vaultPath', 'Desktop/Obsidian Vault/Vault/Inbox'),
+    vaultId: store.get('vaultId', ''),      // id van de gekozen OneDrive-map (blijft kloppen bij hernoemen)
+    vaultPath: store.get('vaultPathLabel', ''), // leesbaar pad, alleen voor weergave
     workEmail: store.get('workEmail', ''),
     lang: store.get('lang', 'nl-NL')
   };
@@ -38,7 +44,6 @@
     $('destWerk').setAttribute('aria-pressed', String(dest === 'werk'));
     $('send').textContent = dest === 'werk' ? 'Verzend naar Werk' : 'Verzend naar Privé';
     store.set('dest', dest);
-    renderAccount();
   }
 
   // ---------- inloggen bij Microsoft ----------
@@ -46,15 +51,30 @@
   let msalApp = null;
   let account = null;
 
-  async function initAuth() {
-    if (!cfg.clientId) {
-      $('setupBanner').hidden = false;
-      $('setupBanner').textContent = 'De app is nog niet gekoppeld aan Microsoft. Vul eerst de client-ID in config.js in.';
-      return;
+  // Laat het inlogscherm of de app zien, nooit allebei.
+  function renderAuth() {
+    $('gate').hidden = !!account;
+    $('app').hidden = !account;
+    const el = $('account');
+    el.textContent = '';
+    if (account) {
+      el.append('Ingelogd als ' + account.username + '. ');
+      const out = document.createElement('button');
+      out.textContent = 'Uitloggen';
+      out.onclick = () => msalApp.logoutRedirect({ account, postLogoutRedirectUri: redirectUri });
+      el.append(out);
     }
-    if (!window.msal) {
-      $('setupBanner').hidden = false;
-      $('setupBanner').textContent = 'De inlogbibliotheek kon niet worden geladen. Controleer je internetverbinding en herlaad.';
+  }
+
+  function gateMessage(message) { $('gateMsg').textContent = message || ''; }
+
+  async function initAuth() {
+    if (!cfg.clientId || !window.msal) {
+      renderAuth();
+      $('gateLogin').disabled = true;
+      gateMessage(!cfg.clientId
+        ? 'De app is nog niet gekoppeld aan Microsoft (client-ID ontbreekt in config.js).'
+        : 'De inlogbibliotheek kon niet worden geladen. Controleer je internetverbinding en herlaad.');
       return;
     }
     msalApp = new msal.PublicClientApplication({
@@ -63,55 +83,70 @@
         authority: 'https://login.microsoftonline.com/consumers',
         redirectUri
       },
+      // localStorage: je blijft ingelogd, ook nadat je de app sluit.
       cache: { cacheLocation: 'localStorage' }
     });
     if (typeof msalApp.initialize === 'function') await msalApp.initialize();
+
     let cameFromLogin = false;
     try {
       const result = await msalApp.handleRedirectPromise();
       cameFromLogin = !!result;
-      account = (result && result.account) || msalApp.getAllAccounts()[0] || null;
+      account = (result && result.account) || msalApp.getActiveAccount() || msalApp.getAllAccounts()[0] || null;
     } catch (e) {
-      status('Inloggen mislukt: ' + (e.errorMessage || e.message), 'err');
+      gateMessage('Inloggen is niet gelukt: ' + (e.errorMessage || e.message));
+      account = msalApp.getAllAccounts()[0] || null;
     }
-    renderAccount();
-    // Was je halverwege het verzenden naar de inlogpagina gestuurd? Dan maken we het nu af.
-    const pending = store.get('pendingSend', '');
-    store.set('pendingSend', '');
-    if (pending && cameFromLogin && account) send();
-  }
+    if (account) msalApp.setActiveAccount(account);
+    renderAuth();
+    if (!account) return;
 
-  function renderAccount() {
-    // Inloggen is altijd verplicht: Privé schrijft naar je OneDrive, Werk mailt vanaf je eigen adres.
-    $('loginBanner').hidden = !msalApp || !!account;
-    const el = $('account');
-    el.textContent = '';
-    if (!msalApp) return;
-    if (account) {
-      el.append('Ingelogd als ' + account.username + '. ');
-      const out = document.createElement('button');
-      out.textContent = 'Uitloggen';
-      out.onclick = () => msalApp.logoutRedirect({ account });
-      el.append(out);
+    if (cameFromLogin) {
+      session.remove('reauth');
+      // Was je halverwege het verzenden naar de inlogpagina gestuurd? Dan maken we het nu af.
+      const pending = store.get('pendingSend', '');
+      store.set('pendingSend', '');
+      if (pending) send();
     } else {
-      el.textContent = 'Niet ingelogd.';
+      store.set('pendingSend', '');
+      refreshSession();
     }
   }
 
   function login() {
-    saveDraft();
-    return msalApp.loginRedirect({ scopes: SCOPES, prompt: 'select_account' });
+    gateMessage('');
+    $('gateLogin').disabled = true;
+    msalApp.loginRedirect({ scopes: SCOPES, prompt: 'select_account' })
+      .catch((e) => { $('gateLogin').disabled = false; gateMessage('Inloggen is niet gelukt: ' + (e.errorMessage || e.message)); });
   }
 
-  async function getToken() {
+  const NETWORK_ERRORS = ['no_network_connectivity', 'post_request_failed', 'endpoints_resolution_error', 'network_error'];
+  const isNetworkError = (e) => !navigator.onLine || e instanceof TypeError || NETWORK_ERRORS.includes(e && e.errorCode);
+
+  // Bij het openen vernieuwen we de sessie alvast op de achtergrond. Lukt dat niet stil, dan gaan we
+  // één keer langs Microsoft; met een actieve Microsoft-sessie hoef je daar niets in te vullen.
+  async function refreshSession() {
+    if (!navigator.onLine) return;
+    try {
+      await msalApp.acquireTokenSilent({ scopes: SCOPES, account });
+      session.remove('reauth');
+    } catch (e) {
+      if (isNetworkError(e) || session.get('reauth')) return;
+      session.set('reauth', '1');
+      saveDraft();
+      msalApp.acquireTokenRedirect({ scopes: SCOPES, account }).catch(() => { /* later opnieuw bij verzenden */ });
+    }
+  }
+
+  async function getToken(resumeSend) {
     try {
       const result = await msalApp.acquireTokenSilent({ scopes: SCOPES, account });
       return result.accessToken;
     } catch (e) {
-      if (e instanceof msal.InteractionRequiredAuthError) {
+      if (!isNetworkError(e)) {
         saveDraft();
-        store.set('pendingSend', '1');
-        status('Je moet opnieuw inloggen. Je notitie blijft bewaard.');
+        if (resumeSend) store.set('pendingSend', '1');
+        status('Je sessie wordt vernieuwd. Je notitie blijft bewaard.');
         await msalApp.acquireTokenRedirect({ scopes: SCOPES, account });
       }
       throw e;
@@ -122,7 +157,7 @@
   async function graph(method, path, token, body, contentType) {
     const headers = { Authorization: 'Bearer ' + token };
     if (contentType) headers['Content-Type'] = contentType;
-    const response = await fetch(GRAPH + path, { method, headers, body });
+    const response = await fetch(path.startsWith('http') ? path : GRAPH + path, { method, headers, body });
     if (!response.ok) {
       let message = 'HTTP ' + response.status;
       try { const j = await response.json(); if (j.error && j.error.message) message = j.error.message; } catch { /* geen json */ }
@@ -132,8 +167,6 @@
     }
     return response.status === 202 || response.status === 204 ? null : response.json();
   }
-
-  const encodePath = (p) => p.split('/').filter(Boolean).map(encodeURIComponent).join('/');
 
   // ---------- notitie opbouwen ----------
   const pad = (n) => String(n).padStart(2, '0');
@@ -160,22 +193,19 @@
   }
 
   async function sendPrive(text, token) {
-    const folder = encodePath(settings.vaultPath);
-    try {
-      await graph('GET', '/me/drive/root:/' + folder + '?$select=id,folder', token);
-    } catch (e) {
-      if (e.status === 404) throw new Error('Map "' + settings.vaultPath + '" bestaat niet in je OneDrive. Pas het pad aan bij Instellingen.');
-      throw e;
-    }
     const note = buildNote(text);
     const file = encodeURIComponent(note.name + '.md');
-    await graph('PUT', '/me/drive/root:/' + folder + '/' + file + ':/content?@microsoft.graph.conflictBehavior=rename',
-      token, note.markdown, 'text/plain');
+    try {
+      await graph('PUT', '/me/drive/items/' + encodeURIComponent(settings.vaultId) + ':/' + file +
+        ':/content?@microsoft.graph.conflictBehavior=rename', token, note.markdown, 'text/plain');
+    } catch (e) {
+      if (e.status === 404) throw new Error('De gekozen map bestaat niet meer in je OneDrive. Kies hem opnieuw bij Instellingen.');
+      throw e;
+    }
     return 'Opgeslagen in je privé-vault ✓';
   }
 
   async function sendWerk(text, token) {
-    if (!settings.workEmail) throw new Error('Vul eerst je werk-mailadres in bij Instellingen.');
     const note = buildNote(text);
     const mail = {
       message: {
@@ -191,23 +221,25 @@
 
   let sending = false;
   async function send() {
-    if (sending) return;
+    if (sending || !account) return;
     const text = $('text').value.trim();
     if (!text) { status('Er staat nog geen tekst.', 'err'); return; }
     stopListening();
-    if (!msalApp) { status('De app is nog niet gekoppeld aan Microsoft.', 'err'); return; }
-    if (!account) {
-      // Zonder Microsoft-login kan er niets verzonden worden: stuur direct door en verzend daarna vanzelf.
-      store.set('pendingSend', '1');
-      status('Je moet eerst inloggen bij Microsoft. Je notitie blijft bewaard.');
-      login();
+    if (dest === 'prive' && !settings.vaultId) {
+      status('Kies eerst de map waar je privé-notities heen moeten.');
+      openPicker();
+      return;
+    }
+    if (dest === 'werk' && !settings.workEmail) {
+      status('Vul eerst je werk-mailadres in.');
+      openSettings();
       return;
     }
     sending = true;
     $('send').disabled = true;
     status('Bezig met verzenden…');
     try {
-      const token = await getToken();
+      const token = await getToken(true);
       const message = dest === 'werk' ? await sendWerk(text, token) : await sendPrive(text, token);
       $('text').value = '';
       $('title').value = '';
@@ -215,8 +247,8 @@
       status(message, 'ok');
       if (navigator.vibrate) navigator.vibrate(40);
     } catch (e) {
-      const offline = !navigator.onLine || e instanceof TypeError;
-      status(offline ? 'Geen verbinding. Je notitie blijft bewaard; probeer het zo opnieuw.' : 'Niet gelukt: ' + (e.errorMessage || e.message), 'err');
+      status(isNetworkError(e) ? 'Geen verbinding. Je notitie blijft bewaard; probeer het zo opnieuw.'
+        : 'Niet gelukt: ' + (e.errorMessage || e.message), 'err');
     } finally {
       sending = false;
       $('send').disabled = false;
@@ -298,20 +330,91 @@
     renderMic();
   }
 
+  // ---------- mapkiezer (bladert door je OneDrive) ----------
+  let pickStack = []; // [{ id, name }] vanaf de hoofdmap
+  let pickLoad = 0;
+
+  function renderVaultPath() {
+    $('vaultPathView').textContent = settings.vaultPath || 'Nog geen map gekozen';
+  }
+
+  async function loadFolder() {
+    const myLoad = ++pickLoad;
+    const list = $('folderList');
+    const current = pickStack[pickStack.length - 1];
+    $('crumbs').textContent = ['OneDrive'].concat(pickStack.map((f) => f.name)).join(' › ');
+    $('pickChoose').disabled = !current;
+    list.innerHTML = '<div class="empty">Laden…</div>';
+    try {
+      const token = await getToken(false);
+      let url = (current ? '/me/drive/items/' + encodeURIComponent(current.id) : '/me/drive/root') +
+        '/children?$select=id,name,folder&$top=200';
+      const folders = [];
+      while (url) {
+        const page = await graph('GET', url, token);
+        folders.push(...page.value.filter((item) => item.folder));
+        url = page['@odata.nextLink'] || null;
+      }
+      if (myLoad !== pickLoad) return;
+      folders.sort((a, b) => a.name.localeCompare(b.name, 'nl', { sensitivity: 'base' }));
+      list.textContent = '';
+      if (current) {
+        const up = document.createElement('button');
+        up.textContent = '↑  Eén map omhoog';
+        up.onclick = () => { pickStack.pop(); loadFolder(); };
+        list.append(up);
+      }
+      for (const folder of folders) {
+        const row = document.createElement('button');
+        row.textContent = '📁  ' + folder.name;
+        row.onclick = () => { pickStack.push({ id: folder.id, name: folder.name }); loadFolder(); };
+        list.append(row);
+      }
+      if (!folders.length) {
+        const empty = document.createElement('div');
+        empty.className = 'empty';
+        empty.textContent = 'Geen submappen. Je kunt deze map kiezen.';
+        list.append(empty);
+      }
+    } catch (e) {
+      if (myLoad !== pickLoad) return;
+      list.innerHTML = '';
+      const err = document.createElement('div');
+      err.className = 'empty';
+      err.textContent = isNetworkError(e) ? 'Geen verbinding met OneDrive.' : 'Mappen laden is niet gelukt: ' + (e.errorMessage || e.message);
+      list.append(err);
+    }
+  }
+
+  function openPicker() {
+    pickStack = [];
+    $('picker').showModal();
+    loadFolder();
+  }
+
+  function choosePicked() {
+    const current = pickStack[pickStack.length - 1];
+    if (!current) return;
+    settings.vaultId = current.id;
+    settings.vaultPath = pickStack.map((f) => f.name).join('/');
+    store.set('vaultId', settings.vaultId);
+    store.set('vaultPathLabel', settings.vaultPath);
+    renderVaultPath();
+    $('picker').close();
+    status('Map gekozen: ' + settings.vaultPath, 'ok');
+  }
+
   // ---------- instellingen ----------
   function openSettings() {
-    $('vaultPath').value = settings.vaultPath;
+    renderVaultPath();
     $('workEmail').value = settings.workEmail;
     $('lang').value = settings.lang;
-    renderAccount();
     $('settings').showModal();
   }
 
   function saveSettings() {
-    settings.vaultPath = $('vaultPath').value.trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
     settings.workEmail = $('workEmail').value.trim();
     settings.lang = $('lang').value;
-    store.set('vaultPath', settings.vaultPath);
     store.set('workEmail', settings.workEmail);
     store.set('lang', settings.lang);
     $('settings').close();
@@ -319,14 +422,17 @@
   }
 
   // ---------- start ----------
+  $('gateLogin').onclick = login;
   $('destPrive').onclick = () => setDest('prive');
   $('destWerk').onclick = () => setDest('werk');
   $('mic').onclick = () => (listening ? stopListening() : startListening());
   $('send').onclick = send;
-  $('login').onclick = login;
   $('openSettings').onclick = openSettings;
   $('cancelSettings').onclick = () => $('settings').close();
   $('saveSettings').onclick = saveSettings;
+  $('browse').onclick = openPicker;
+  $('pickCancel').onclick = () => $('picker').close();
+  $('pickChoose').onclick = choosePicked;
   $('text').addEventListener('input', saveDraft);
   $('title').addEventListener('input', saveDraft);
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopListening(); });
