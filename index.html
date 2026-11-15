@@ -10,14 +10,16 @@
 <style>
   :root {
     --bg: #14161a; --panel: #1e2127; --line: #2f343d; --text: #eceef2; --muted: #9aa1ad;
-    --accent: #3fb27f; --accent-text: #06150e; --danger: #e5484d;
+    --green: #3fb27f; --green-text: #06150e; --blue: #5b9dff; --blue-text: #04122b;
+    --accent: var(--green); --accent-text: var(--green-text); --danger: #e5484d;
   }
-  body[data-dest="werk"] { --accent: #5b9dff; --accent-text: #04122b; }
   @media (prefers-color-scheme: light) {
     :root { --bg: #f5f6f8; --panel: #ffffff; --line: #d9dde3; --text: #16181d; --muted: #5d6470;
-            --accent: #1f8f5f; --accent-text: #ffffff; }
-    body[data-dest="werk"] { --accent: #2463d6; --accent-text: #ffffff; }
+            --green: #1f8f5f; --green-text: #ffffff; --blue: #2463d6; --blue-text: #ffffff; }
   }
+  /* Groen hoort bij Privé, blauw bij Werk: in de app en in de tabs van Instellingen. */
+  body[data-dest="werk"], dialog[data-tab="werk"] { --accent: var(--blue); --accent-text: var(--blue-text); }
+  dialog[data-tab="prive"] { --accent: var(--green); --accent-text: var(--green-text); }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { height: 100%; margin: 0; }
@@ -54,7 +56,7 @@
   .seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--panel);
          border: 1px solid var(--line); border-radius: 14px; padding: 4px; gap: 4px; }
   .seg button { padding: 12px; border-radius: 10px; font-weight: 600; color: var(--muted); }
-  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); }
+  .seg button[aria-pressed="true"], .seg button[aria-selected="true"] { background: var(--accent); color: var(--accent-text); }
 
   .editor { flex: 1; min-height: 160px; display: flex; flex-direction: column; background: var(--panel);
             border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
@@ -79,7 +81,7 @@
   #status.err { color: var(--danger); }
 
   /* ---------- dialogen ---------- */
-  dialog { width: min(92vw, 480px); border: 1px solid var(--line); border-radius: 16px;
+  dialog { max-height: 92dvh; overflow-y: auto; width: min(92vw, 480px); border: 1px solid var(--line); border-radius: 16px;
            background: var(--panel); color: var(--text); padding: 18px; }
   dialog::backdrop { background: rgba(0, 0, 0, .55); }
   dialog h2 { margin: 0 0 12px; font-size: 17px; }
@@ -95,6 +97,24 @@
   .row .primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
   .row button:disabled { opacity: .5; }
 
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; margin: -6px -8px 8px 0; }
+  .dlg-head h2 { margin: 0; }
+  .tabs { background: var(--bg); }
+  /* Vaste hoogte: wisselen van tab verschuift de knoppen eronder niet. */
+  .panel { min-height: 262px; padding-top: 6px; }
+  .panel .intro { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
+  .general { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 2px; }
+  .done { width: 100%; margin-top: 16px; padding: 14px; border-radius: 12px; font-weight: 700;
+          background: var(--accent); color: var(--accent-text); }
+  /* Uitloggen staat apart onderaan, onopvallend, en vraagt altijd om bevestiging. */
+  .account { border-top: 1px solid var(--line); margin-top: 18px; padding-top: 12px; min-height: 62px;
+             display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .account .who { flex: 1; min-width: 0; color: var(--muted); }
+  .account button { padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line);
+                    font-weight: 600; font-size: 13px; white-space: nowrap; color: var(--muted); }
+  .account #logoutYes { border-color: var(--danger); color: var(--danger); }
+  .account #logoutNo { color: var(--text); min-width: 100px; }
+  .account .ask { flex: 1; color: var(--text); font-weight: 600; }
   .pathrow { display: flex; gap: 8px; align-items: stretch; }
   #vaultPathView, .box { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
                    background: var(--bg); overflow-wrap: anywhere; font-size: 14px; }
@@ -108,9 +128,7 @@
                   max-width: 42%; user-select: none; font-size: 14px; }
   .compose input { flex: 1; min-width: 88px; border: 0; outline: 0; background: transparent; padding: 11px 2px;
                    font-size: 14px; font-weight: 600; }
-  #accountName { flex: 1; min-width: 0; align-self: center; font-size: 14px; overflow-wrap: anywhere; }
-  #logout { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--danger); color: var(--danger);
-            font-weight: 600; white-space: nowrap; }
+  #accountName { color: var(--text); overflow-wrap: anywhere; }
 
   #crumbs { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; margin-bottom: 8px; }
   #folderList { height: min(46vh, 340px); overflow-y: auto; border: 1px solid var(--line); border-radius: 10px;
@@ -169,42 +187,59 @@
     </div>
   </main>
 
-  <dialog id="settings">
-    <h2>Instellingen</h2>
-    <div class="label">Map voor privé-notities (in je OneDrive)</div>
-    <div class="pathrow">
-      <div id="vaultPathView"></div>
-      <button id="browse">Map kiezen</button>
-    </div>
-    <div class="hint">Kies de Inbox-map van je Obsidian-vault.</div>
-
-    <label for="workEmail">Je werk-mailadres</label>
-    <input id="workEmail" type="email" autocomplete="off" inputmode="email">
-    <div class="hint">Notities voor Werk worden naar dit adres gemaild.</div>
-
-    <label for="tag">Label</label>
-    <div class="compose">
-      <span id="tagPrefix"></span>
-      <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
-      <span id="tagSuffix"></span>
-    </div>
-    <div class="hint" id="senderPreview"></div>
-
-    <label for="lang">Spraaktaal</label>
-    <select id="lang">
-      <option value="nl-NL">Nederlands</option>
-      <option value="en-US">Engels</option>
-    </select>
-
-    <div class="label">Account</div>
-    <div class="pathrow">
-      <div id="accountName"></div>
-      <button id="logout">Uitloggen</button>
+  <dialog id="settings" data-tab="prive">
+    <div class="dlg-head">
+      <h2>Instellingen</h2>
+      <button class="icon-btn" id="closeSettings" aria-label="Sluiten">✕</button>
     </div>
 
-    <div class="row">
-      <button id="cancelSettings">Annuleren</button>
-      <button id="saveSettings" class="primary">Opslaan</button>
+    <div class="seg tabs" role="tablist" aria-label="Instellingen per vault">
+      <button id="tabPrive" role="tab" aria-controls="panelPrive" aria-selected="true">Privé-vault</button>
+      <button id="tabWerk" role="tab" aria-controls="panelWerk" aria-selected="false">Werk-vault</button>
+    </div>
+
+    <div class="panel" id="panelPrive" role="tabpanel" aria-labelledby="tabPrive">
+      <p class="intro">Privé-notities komen als bestand in een map van je OneDrive.</p>
+      <div class="label">Map</div>
+      <div class="pathrow">
+        <div id="vaultPathView"></div>
+        <button id="browse">Map kiezen</button>
+      </div>
+      <div class="hint">Kies de Inbox-map van je Obsidian-vault.</div>
+    </div>
+
+    <div class="panel" id="panelWerk" role="tabpanel" aria-labelledby="tabWerk" hidden>
+      <p class="intro">Werk-notities worden vanaf je eigen adres naar je werk gemaild.</p>
+      <label for="workEmail">Je werk-mailadres</label>
+      <input id="workEmail" type="email" autocomplete="off" inputmode="email">
+
+      <label for="tag">Label</label>
+      <div class="compose">
+        <span id="tagPrefix"></span>
+        <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
+        <span id="tagSuffix"></span>
+      </div>
+      <div class="hint" id="senderPreview"></div>
+    </div>
+
+    <div class="general">
+      <label for="lang">Spraaktaal</label>
+      <select id="lang">
+        <option value="nl-NL">Nederlands</option>
+        <option value="en-US">Engels</option>
+      </select>
+    </div>
+
+    <button id="doneSettings" class="done">Klaar</button>
+
+    <div class="account" id="accountRow">
+      <div class="who">Ingelogd als<div id="accountName"></div></div>
+      <button id="logoutAsk">Uitloggen</button>
+    </div>
+    <div class="account" id="logoutConfirm" hidden>
+      <div class="ask">Uitloggen uit de app?</div>
+      <button id="logoutYes">Ja, uitloggen</button>
+      <button id="logoutNo">Nee</button>
     </div>
   </dialog>
 

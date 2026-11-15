@@ -262,7 +262,8 @@
     }
     if (dest === 'werk' && !settings.workEmail) {
       status('Vul eerst je werk-mailadres in.');
-      openSettings();
+      openSettings('werk');
+      $('workEmail').focus();
       return;
     }
     sending = true;
@@ -435,18 +436,22 @@
   }
 
   // ---------- instellingen ----------
-  function openSettings() {
-    renderVaultPath();
-    $('workEmail').value = settings.workEmail;
-    $('tag').value = settings.tag;
-    // Het adres waarmee je bent ingelogd staat vast; alleen het label ertussen is aanpasbaar.
-    const own = account ? account.username : '';
-    const at = own.lastIndexOf('@');
-    $('tagPrefix').textContent = (at > 0 ? own.slice(0, at).split('+')[0] : own) + '+';
-    $('tagSuffix').textContent = at > 0 ? own.slice(at) : '';
-    $('lang').value = settings.lang;
-    renderSenderPreview();
-    $('settings').showModal();
+  // Wijzigingen worden direct bewaard; er is geen aparte opslaan-knop.
+  function showTab(tab) {
+    tab = tab === 'werk' ? 'werk' : 'prive';
+    $('settings').dataset.tab = tab;
+    $('tabPrive').setAttribute('aria-selected', String(tab === 'prive'));
+    $('tabWerk').setAttribute('aria-selected', String(tab === 'werk'));
+    $('panelPrive').hidden = tab !== 'prive';
+    $('panelWerk').hidden = tab !== 'werk';
+    askLogout(false);
+  }
+
+  // Uitloggen gaat in twee stappen. De bevestiging staat links en "Nee" rechts, op de plek van de
+  // eerste knop, zodat twee keer snel tikken je nooit uitlogt.
+  function askLogout(asking) {
+    $('accountRow').hidden = asking;
+    $('logoutConfirm').hidden = !asking;
   }
 
   function renderSenderPreview() {
@@ -455,15 +460,19 @@
       '. Onderwerp begint met [' + (tag || 'brain') + '].';
   }
 
-  function saveSettings() {
-    settings.workEmail = $('workEmail').value.trim();
-    settings.tag = cleanTag($('tag').value);
-    settings.lang = $('lang').value;
-    store.set(userKey('workEmail'), settings.workEmail);
-    store.set(userKey('tag'), settings.tag);
-    store.set('lang', settings.lang);
-    $('settings').close();
-    status('Instellingen opgeslagen.', 'ok');
+  function openSettings(tab) {
+    renderVaultPath();
+    $('workEmail').value = settings.workEmail;
+    $('tag').value = settings.tag;
+    $('lang').value = settings.lang;
+    // Het adres waarmee je bent ingelogd staat vast; alleen het label ertussen is aanpasbaar.
+    const own = account ? account.username : '';
+    const at = own.lastIndexOf('@');
+    $('tagPrefix').textContent = (at > 0 ? own.slice(0, at).split('+')[0] : own) + '+';
+    $('tagSuffix').textContent = at > 0 ? own.slice(at) : '';
+    renderSenderPreview();
+    showTab(tab || dest);
+    $('settings').showModal();
   }
 
   // ---------- start ----------
@@ -472,12 +481,29 @@
   $('destWerk').onclick = () => setDest('werk');
   $('mic').onclick = () => (listening ? stopListening() : startListening());
   $('send').onclick = send;
-  $('openSettings').onclick = openSettings;
-  $('cancelSettings').onclick = () => $('settings').close();
-  $('saveSettings').onclick = saveSettings;
+  $('openSettings').onclick = () => openSettings();
+  $('closeSettings').onclick = () => $('settings').close();
+  $('doneSettings').onclick = () => $('settings').close();
+  $('tabPrive').onclick = () => showTab('prive');
+  $('tabWerk').onclick = () => showTab('werk');
+  $('workEmail').addEventListener('input', () => {
+    settings.workEmail = $('workEmail').value.trim();
+    store.set(userKey('workEmail'), settings.workEmail);
+  });
+  $('tag').addEventListener('input', () => {
+    settings.tag = cleanTag($('tag').value);
+    store.set(userKey('tag'), settings.tag);
+    renderSenderPreview();
+  });
+  $('tag').addEventListener('blur', () => { $('tag').value = settings.tag; });
+  $('lang').addEventListener('change', () => {
+    settings.lang = $('lang').value;
+    store.set('lang', settings.lang);
+  });
+  $('logoutAsk').onclick = () => askLogout(true);
+  $('logoutNo').onclick = () => askLogout(false);
+  $('logoutYes').onclick = logout;
   $('browse').onclick = openPicker;
-  $('logout').onclick = logout;
-  $('tag').addEventListener('input', renderSenderPreview);
   $('pickCancel').onclick = () => $('picker').close();
   $('pickChoose').onclick = choosePicked;
   $('text').addEventListener('input', saveDraft);
