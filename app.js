@@ -441,20 +441,11 @@
     $('logoutConfirm').hidden = !asking;
   }
 
-  function renderLabelHint() {
-    const label = '[' + (cleanTag($('tag').value) || 'brain') + ']';
-    const d = new Date();
-    const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + pad(d.getMinutes()) + ' ';
-    $('labelHint').textContent = 'Het onderwerp wordt bijvoorbeeld: ' + label + ' ' +
-      ($('dateInSubject').checked ? stamp : '') + 'Offerte klant X. Op ' + label + ' kun je op je werk filteren.';
-  }
-
   function openSettings(tab) {
     renderVaultPath();
     $('workEmail').value = settings.workEmail;
     $('tag').value = settings.tag;
     $('dateInSubject').checked = settings.dateInSubject;
-    renderLabelHint();
     showTab(tab || dest);
     $('settings').showModal();
   }
@@ -477,13 +468,11 @@
   $('tag').addEventListener('input', () => {
     settings.tag = cleanTag($('tag').value);
     store.set(userKey('tag'), settings.tag);
-    renderLabelHint();
   });
   $('tag').addEventListener('blur', () => { $('tag').value = settings.tag; });
   $('dateInSubject').addEventListener('change', () => {
     settings.dateInSubject = $('dateInSubject').checked;
     store.set(userKey('dateInSubject'), settings.dateInSubject ? '1' : '');
-    renderLabelHint();
   });
   $('logoutAsk').onclick = () => askLogout(true);
   $('logoutNo').onclick = () => askLogout(false);

@@ -209,11 +209,12 @@
 
       <label for="tag">Label</label>
       <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
+      <div class="hint">Het onderwerp van elke werkmail begint met je label, bijvoorbeeld: [label] notitie. Je kunt in Outlook op [label] filteren en er regels voor instellen.</div>
       <label class="check">
         <input type="checkbox" id="dateInSubject">
         <span>Datum en tijd in het onderwerp</span>
       </label>
-      <div class="hint" id="labelHint"></div>
+      <div class="hint">Aangevinkt wordt het: [label] 2026-01-01 0000 notitie.</div>
     </div>
 
     <button id="doneSettings" class="done">Klaar</button>
@@ -239,8 +240,8 @@
     </div>
   </dialog>
 
-  <script src="config.js?v=15"></script>
+  <script src="config.js?v=16"></script>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js"></script>
-  <script src="app.js?v=15"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>
