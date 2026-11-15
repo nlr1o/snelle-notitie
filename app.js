@@ -215,7 +215,7 @@
       if (e.status === 404) throw new Error('De gekozen map bestaat niet meer in je OneDrive. Kies hem opnieuw bij Instellingen.');
       throw e;
     }
-    return 'Opgeslagen in je privé-vault ✓';
+    return 'Opgeslagen in ' + (settings.vaultPath || 'je privé-vault') + ' ✓';
   }
 
   const cleanTag = (value) => value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
@@ -233,7 +233,7 @@
       saveToSentItems: true
     };
     await graph('POST', '/me/sendMail', token, JSON.stringify(mail), 'application/json');
-    return 'Gemaild naar je werkadres ✓';
+    return 'Verstuurd naar ' + settings.workEmail + ' ✓';
   }
 
   let sending = false;
