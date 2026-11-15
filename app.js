@@ -3,7 +3,7 @@
 
   const cfg = window.APP_CONFIG || {};
   const $ = (id) => document.getElementById(id);
-  const SCOPES = ['User.Read', 'Files.ReadWrite', 'Mail.Send'];
+  const SCOPES = ['Files.ReadWrite', 'Mail.Send'];
   const GRAPH = 'https://graph.microsoft.com/v1.0';
 
   // ---------- opslag op het toestel ----------
@@ -27,23 +27,7 @@
     settings.vaultId = store.get(userKey('vaultId'), '');       // id van de gekozen OneDrive-map
     settings.vaultPath = store.get(userKey('vaultPath'), '');   // leesbaar pad, alleen voor weergave
     settings.workEmail = store.get(userKey('workEmail'), '');
-    settings.tag = store.get(userKey('tag'), 'brain');          // label achter de + in het afzenderadres
-    mailAddress = store.get(userKey('mailAddress'), '');
-  }
-
-  // Het adres waarmee je inlogt kan een alias zijn. Mail gaat vanaf het hoofdadres van je mailbox,
-  // dus dat vragen we bij Microsoft op en gebruiken we als basis voor het afzenderadres.
-  let mailAddress = '';
-  const ownAddress = () => mailAddress || (account ? account.username : '');
-  async function loadMailAddress(token) {
-    try {
-      const me = await graph('GET', '/me?$select=mail,userPrincipalName', token);
-      const address = me.mail || me.userPrincipalName || '';
-      if (address.includes('@')) {
-        mailAddress = address;
-        store.set(userKey('mailAddress'), mailAddress);
-      }
-    } catch { /* dan blijft het inlogadres de basis */ }
+    settings.tag = store.get(userKey('tag'), 'brain');          // label vooraan in het mailonderwerp
   }
 
   // ---------- status ----------
@@ -154,9 +138,8 @@
   async function refreshSession() {
     if (!navigator.onLine) return;
     try {
-      const result = await msalApp.acquireTokenSilent({ scopes: SCOPES, account });
+      await msalApp.acquireTokenSilent({ scopes: SCOPES, account });
       session.remove('reauth');
-      loadMailAddress(result.accessToken);
     } catch (e) {
       if (isNetworkError(e) || session.get('reauth')) return;
       session.set('reauth', '1');
@@ -234,37 +217,22 @@
     return 'Opgeslagen in je privé-vault ✓';
   }
 
-  const cleanTag = (value) => value.trim().toLowerCase().replace(/^\++/, '').replace(/[^a-z0-9._-]/g, '');
+  const cleanTag = (value) => value.trim().toLowerCase().replace(/[^a-z0-9._-]/g, '');
 
-  // Je eigen adres met het label erachter: naam+label@domein.
-  function senderAddress(tag) {
-    const own = ownAddress();
-    const at = own.lastIndexOf('@');
-    if (!tag || at < 1) return own;
-    return own.slice(0, at).split('+')[0] + '+' + tag + own.slice(at);
-  }
-
+  // De mail gaat vanaf het standaardadres van je Microsoft-account. Het label staat vooraan in het
+  // onderwerp, zodat je er op je werk op kunt filteren.
   async function sendWerk(text, token) {
-    await loadMailAddress(token);
     const note = buildNote(text);
-    const message = {
-      subject: '[' + (settings.tag || 'brain') + '] ' + note.name,
-      body: { contentType: 'Text', content: text },
-      toRecipients: [{ emailAddress: { address: settings.workEmail } }]
+    const mail = {
+      message: {
+        subject: '[' + (settings.tag || 'brain') + '] ' + note.name,
+        body: { contentType: 'Text', content: text },
+        toRecipients: [{ emailAddress: { address: settings.workEmail } }]
+      },
+      saveToSentItems: true
     };
-    const post = (msg) => graph('POST', '/me/sendMail', token,
-      JSON.stringify({ message: msg, saveToSentItems: true }), 'application/json');
-    if (!settings.tag) { await post(message); return 'Gemaild naar je werkadres ✓'; }
-    const from = senderAddress(settings.tag);
-    try {
-      await post(Object.assign({}, message, { from: { emailAddress: { address: from } } }));
-      return 'Gemaild naar je werkadres ✓';
-    } catch (e) {
-      // Staat Microsoft het plus-adres als afzender niet toe, verstuur dan vanaf je gewone adres.
-      if (e.status !== 400 && e.status !== 403) throw e;
-      await post(message);
-      return 'Gemaild vanaf je gewone adres: Microsoft weigerde ' + from + ' als afzender.';
-    }
+    await graph('POST', '/me/sendMail', token, JSON.stringify(mail), 'application/json');
+    return 'Gemaild naar je werkadres ✓';
   }
 
   let sending = false;
@@ -472,22 +440,16 @@
     $('logoutConfirm').hidden = !asking;
   }
 
-  function renderSenderPreview() {
-    const tag = cleanTag($('tag').value);
-    $('senderPreview').textContent = 'Afzender van je werknotities: ' + senderAddress(tag) +
-      '. Onderwerp begint met [' + (tag || 'brain') + '].';
+  function renderLabelHint() {
+    $('labelHint').textContent = 'Het onderwerp van elke werkmail begint met [' +
+      (cleanTag($('tag').value) || 'brain') + ']. Daarop kun je op je werk filteren.';
   }
 
   function openSettings(tab) {
     renderVaultPath();
     $('workEmail').value = settings.workEmail;
     $('tag').value = settings.tag;
-    // Het adres waarmee je bent ingelogd staat vast; alleen het label ertussen is aanpasbaar.
-    const own = ownAddress();
-    const at = own.lastIndexOf('@');
-    $('tagPrefix').textContent = (at > 0 ? own.slice(0, at).split('+')[0] : own) + '+';
-    $('tagSuffix').textContent = at > 0 ? own.slice(at) : '';
-    renderSenderPreview();
+    renderLabelHint();
     showTab(tab || dest);
     $('settings').showModal();
   }
@@ -510,7 +472,7 @@
   $('tag').addEventListener('input', () => {
     settings.tag = cleanTag($('tag').value);
     store.set(userKey('tag'), settings.tag);
-    renderSenderPreview();
+    renderLabelHint();
   });
   $('tag').addEventListener('blur', () => { $('tag').value = settings.tag; });
   $('logoutAsk').onclick = () => askLogout(true);

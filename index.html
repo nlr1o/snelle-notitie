@@ -120,14 +120,6 @@
                    background: var(--bg); overflow-wrap: anywhere; font-size: 14px; }
   #browse { padding: 0 14px; border-radius: 10px; border: 1px solid var(--accent); color: var(--accent);
             font-weight: 600; white-space: nowrap; }
-  /* Je eigen adres staat vast; alleen het stukje achter de + is een invoerveld. */
-  .compose { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px;
-             background: var(--bg); padding: 0 12px; }
-  .compose:focus-within { border-color: var(--accent); }
-  .compose span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-                  max-width: 42%; user-select: none; font-size: 14px; }
-  .compose input { flex: 1; min-width: 88px; border: 0; outline: 0; background: transparent; padding: 11px 2px;
-                   font-size: 14px; font-weight: 600; }
   #accountName { color: var(--text); overflow-wrap: anywhere; }
 
   #crumbs { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; margin-bottom: 8px; }
@@ -209,17 +201,13 @@
     </div>
 
     <div class="panel" id="panelWerk" role="tabpanel" aria-labelledby="tabWerk" hidden>
-      <p class="intro">Werk-notities worden vanaf je eigen adres naar je werk gemaild.</p>
+      <p class="intro">Werk-notities worden naar je werk gemaild, vanaf het standaardadres van je Microsoft-account.</p>
       <label for="workEmail">Je werk-mailadres</label>
       <input id="workEmail" type="email" autocomplete="off" inputmode="email">
 
       <label for="tag">Label</label>
-      <div class="compose">
-        <span id="tagPrefix"></span>
-        <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
-        <span id="tagSuffix"></span>
-      </div>
-      <div class="hint" id="senderPreview"></div>
+      <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
+      <div class="hint" id="labelHint"></div>
     </div>
 
     <button id="doneSettings" class="done">Klaar</button>
@@ -245,8 +233,8 @@
     </div>
   </dialog>
 
-  <script src="config.js?v=13"></script>
+  <script src="config.js?v=14"></script>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
