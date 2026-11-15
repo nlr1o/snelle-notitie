@@ -3,7 +3,6 @@
 
   const cfg = window.APP_CONFIG || {};
   const $ = (id) => document.getElementById(id);
-  const TAG = '[brain]';
   const SCOPES = ['Files.ReadWrite', 'Mail.Send'];
   const GRAPH = 'https://graph.microsoft.com/v1.0';
 
@@ -21,12 +20,15 @@
     remove(key) { try { sessionStorage.removeItem('qc.' + key); } catch { /* geen opslag */ } }
   };
 
-  const settings = {
-    vaultId: store.get('vaultId', ''),      // id van de gekozen OneDrive-map (blijft kloppen bij hernoemen)
-    vaultPath: store.get('vaultPathLabel', ''), // leesbaar pad, alleen voor weergave
-    workEmail: store.get('workEmail', ''),
-    lang: store.get('lang', 'nl-NL')
-  };
+  // Map, werkadres en label horen bij het ingelogde account; elke gebruiker heeft zijn eigen instellingen.
+  const settings = { vaultId: '', vaultPath: '', workEmail: '', tag: 'brain', lang: store.get('lang', 'nl-NL') };
+  const userKey = (key) => key + '.' + (account ? account.homeAccountId : 'anon');
+  function loadUserSettings() {
+    settings.vaultId = store.get(userKey('vaultId'), '');       // id van de gekozen OneDrive-map
+    settings.vaultPath = store.get(userKey('vaultPath'), '');   // leesbaar pad, alleen voor weergave
+    settings.workEmail = store.get(userKey('workEmail'), '');
+    settings.tag = store.get(userKey('tag'), 'brain');          // label achter de + in het afzenderadres
+  }
 
   // ---------- status ----------
   function status(message, kind) {
@@ -55,15 +57,22 @@
   function renderAuth() {
     $('gate').hidden = !!account;
     $('app').hidden = !account;
-    const el = $('account');
-    el.textContent = '';
-    if (account) {
-      el.append('Ingelogd als ' + account.username + '. ');
-      const out = document.createElement('button');
-      out.textContent = 'Uitloggen';
-      out.onclick = () => msalApp.logoutRedirect({ account, postLogoutRedirectUri: redirectUri });
-      el.append(out);
-    }
+    $('accountName').textContent = account ? account.username : '';
+  }
+
+  // Uitloggen uit de app, zodat je met een ander account kunt inloggen.
+  // Je blijft wel aangemeld bij Microsoft zelf in de browser.
+  async function logout() {
+    stopListening();
+    try { await msalApp.logoutRedirect({ account, onRedirectNavigate: () => false }); } catch { /* cache al leeg */ }
+    account = null;
+    msalApp.setActiveAccount(null);
+    loadUserSettings();
+    if ($('settings').open) $('settings').close();
+    status('');
+    $('gateLogin').disabled = false;
+    gateMessage('');
+    renderAuth();
   }
 
   function gateMessage(message) { $('gateMsg').textContent = message || ''; }
@@ -98,6 +107,7 @@
       account = msalApp.getAllAccounts()[0] || null;
     }
     if (account) msalApp.setActiveAccount(account);
+    loadUserSettings();
     renderAuth();
     if (!account) return;
 
@@ -160,8 +170,10 @@
     const response = await fetch(path.startsWith('http') ? path : GRAPH + path, { method, headers, body });
     if (!response.ok) {
       let message = 'HTTP ' + response.status;
-      try { const j = await response.json(); if (j.error && j.error.message) message = j.error.message; } catch { /* geen json */ }
+      let code = '';
+      try { const j = await response.json(); if (j.error) { message = j.error.message || message; code = j.error.code || ''; } } catch { /* geen json */ }
       const err = new Error(message);
+      err.code = code;
       err.status = response.status;
       throw err;
     }
@@ -205,18 +217,36 @@
     return 'Opgeslagen in je privé-vault ✓';
   }
 
+  const cleanTag = (value) => value.trim().toLowerCase().replace(/^\++/, '').replace(/[^a-z0-9._-]/g, '');
+
+  // Je eigen adres met het label erachter: naam+label@domein.
+  function senderAddress(tag) {
+    const own = account ? account.username : '';
+    const at = own.lastIndexOf('@');
+    if (!tag || at < 1) return own;
+    return own.slice(0, at).split('+')[0] + '+' + tag + own.slice(at);
+  }
+
   async function sendWerk(text, token) {
     const note = buildNote(text);
-    const mail = {
-      message: {
-        subject: TAG + ' ' + note.name,
-        body: { contentType: 'Text', content: text },
-        toRecipients: [{ emailAddress: { address: settings.workEmail } }]
-      },
-      saveToSentItems: true
+    const message = {
+      subject: '[' + (settings.tag || 'brain') + '] ' + note.name,
+      body: { contentType: 'Text', content: text },
+      toRecipients: [{ emailAddress: { address: settings.workEmail } }]
     };
-    await graph('POST', '/me/sendMail', token, JSON.stringify(mail), 'application/json');
-    return 'Gemaild naar je werkadres ✓';
+    const post = (msg) => graph('POST', '/me/sendMail', token,
+      JSON.stringify({ message: msg, saveToSentItems: true }), 'application/json');
+    if (!settings.tag) { await post(message); return 'Gemaild naar je werkadres ✓'; }
+    const from = senderAddress(settings.tag);
+    try {
+      await post(Object.assign({}, message, { from: { emailAddress: { address: from } } }));
+      return 'Gemaild naar je werkadres ✓';
+    } catch (e) {
+      // Staat Microsoft het plus-adres als afzender niet toe, verstuur dan vanaf je gewone adres.
+      if (e.status !== 400 && e.status !== 403) throw e;
+      await post(message);
+      return 'Gemaild vanaf je gewone adres: Microsoft weigerde ' + from + ' als afzender.';
+    }
   }
 
   let sending = false;
@@ -397,8 +427,8 @@
     if (!current) return;
     settings.vaultId = current.id;
     settings.vaultPath = pickStack.map((f) => f.name).join('/');
-    store.set('vaultId', settings.vaultId);
-    store.set('vaultPathLabel', settings.vaultPath);
+    store.set(userKey('vaultId'), settings.vaultId);
+    store.set(userKey('vaultPath'), settings.vaultPath);
     renderVaultPath();
     $('picker').close();
     status('Map gekozen: ' + settings.vaultPath, 'ok');
@@ -408,14 +438,24 @@
   function openSettings() {
     renderVaultPath();
     $('workEmail').value = settings.workEmail;
+    $('tag').value = settings.tag;
     $('lang').value = settings.lang;
+    renderSenderPreview();
     $('settings').showModal();
+  }
+
+  function renderSenderPreview() {
+    const tag = cleanTag($('tag').value);
+    $('senderPreview').textContent = 'Afzender van je werknotities: ' + senderAddress(tag) +
+      '. Onderwerp begint met [' + (tag || 'brain') + '].';
   }
 
   function saveSettings() {
     settings.workEmail = $('workEmail').value.trim();
+    settings.tag = cleanTag($('tag').value);
     settings.lang = $('lang').value;
-    store.set('workEmail', settings.workEmail);
+    store.set(userKey('workEmail'), settings.workEmail);
+    store.set(userKey('tag'), settings.tag);
     store.set('lang', settings.lang);
     $('settings').close();
     status('Instellingen opgeslagen.', 'ok');
@@ -431,6 +471,8 @@
   $('cancelSettings').onclick = () => $('settings').close();
   $('saveSettings').onclick = saveSettings;
   $('browse').onclick = openPicker;
+  $('logout').onclick = logout;
+  $('tag').addEventListener('input', renderSenderPreview);
   $('pickCancel').onclick = () => $('picker').close();
   $('pickChoose').onclick = choosePicked;
   $('text').addEventListener('input', saveDraft);

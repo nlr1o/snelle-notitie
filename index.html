@@ -42,6 +42,7 @@
   #gateLogin:disabled { opacity: .6; }
   #gateMsg { min-height: 22px; font-size: 14px; color: var(--danger); max-width: 34ch; }
   #gate .fine { font-size: 12px; max-width: 36ch; }
+  #gate .only { font-size: 14px; max-width: 32ch; color: var(--text); }
 
   /* ---------- app ---------- */
   #app { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
@@ -93,13 +94,13 @@
   .row button { flex: 1; padding: 12px; border-radius: 10px; font-weight: 600; border: 1px solid var(--line); }
   .row .primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
   .row button:disabled { opacity: .5; }
-  #account { font-size: 13px; color: var(--muted); margin-top: 14px; }
-  #account button { color: var(--accent); font-weight: 600; }
 
   .pathrow { display: flex; gap: 8px; align-items: stretch; }
-  #vaultPathView { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
+  #vaultPathView, .box { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
                    background: var(--bg); overflow-wrap: anywhere; font-size: 14px; }
   #browse { padding: 0 14px; border-radius: 10px; border: 1px solid var(--accent); color: var(--accent);
+            font-weight: 600; white-space: nowrap; }
+  #logout { padding: 0 14px; border-radius: 10px; border: 1px solid var(--danger); color: var(--danger);
             font-weight: 600; white-space: nowrap; }
 
   #crumbs { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; margin-bottom: 8px; }
@@ -126,6 +127,7 @@
       </svg>
       Inloggen met Microsoft
     </button>
+    <p class="only">Alleen met een <strong>persoonlijk</strong> Microsoft-account, zoals Outlook, Hotmail of Live. Een account van werk of school werkt niet.</p>
     <div id="gateMsg" role="alert"></div>
     <p class="fine">De app gebruikt je account alleen om notities in je eigen OneDrive te zetten en vanaf je eigen adres te mailen. Er wordt niets op een server bewaard.</p>
   </section>
@@ -167,9 +169,13 @@
     </div>
     <div class="hint">Kies de Inbox-map van je Obsidian-vault.</div>
 
-    <label for="workEmail">Werk-mailadres</label>
-    <input id="workEmail" type="email" autocomplete="off" placeholder="henk+werkbrain@werkdomein.nl">
-    <div class="hint">Notities voor Werk worden vanaf je eigen Microsoft-adres hierheen gemaild, met [brain] in het onderwerp. Een plus-adres maakt filteren op je werk makkelijk.</div>
+    <label for="workEmail">Je werk-mailadres</label>
+    <input id="workEmail" type="email" autocomplete="off" inputmode="email">
+    <div class="hint">Notities voor Werk worden naar dit adres gemaild.</div>
+
+    <label for="tag">Label voor de afzender (komt achter de +)</label>
+    <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
+    <div class="hint" id="senderPreview"></div>
 
     <label for="lang">Spraaktaal</label>
     <select id="lang">
@@ -177,7 +183,12 @@
       <option value="en-US">Engels</option>
     </select>
 
-    <div id="account"></div>
+    <div class="label">Account</div>
+    <div class="pathrow">
+      <div id="accountName" class="box"></div>
+      <button id="logout">Uitloggen</button>
+    </div>
+
     <div class="row">
       <button id="cancelSettings">Annuleren</button>
       <button id="saveSettings" class="primary">Opslaan</button>
