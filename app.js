@@ -239,9 +239,20 @@
   let sending = false;
   async function send() {
     if (sending || !account) return;
+    if (listening) {
+      // Verzenden tijdens het opnemen: eerst de opname stoppen en wachten tot de laatste woorden
+      // als tekst zijn binnengekomen, daarna pas versturen.
+      sending = true;
+      $('send').disabled = true;
+      const finished = finishListening();
+      status('Spraak afronden…');
+      await finished;
+      sending = false;
+      $('send').disabled = false;
+      status('');
+    }
     const text = $('text').value.trim();
     if (!text) { status('Er staat nog geen tekst.', 'err'); return; }
-    stopListening();
     if (dest === 'prive' && !settings.vaultId) {
       status('Kies eerst de map waar je privé-notities heen moeten.');
       openPicker();
@@ -283,6 +294,8 @@
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null;
   let listening = false;
+  let recognizing = false; // de herkenner draait op dit moment echt
+  let lastInterim = '';    // gesproken tekst die nog niet definitief is binnengekomen
 
   function appendSpoken(fragment) {
     fragment = fragment.trim();
@@ -308,6 +321,7 @@
         else interim += result[0].transcript;
       }
       $('interim').textContent = interim;
+      lastInterim = interim;
     };
     recognition.onerror = (event) => {
       if (event.error === 'no-speech' || event.error === 'aborted') return;
@@ -320,11 +334,27 @@
       status(messages[event.error] || 'Spraakherkenning gestopt: ' + event.error, 'err');
     };
     recognition.onend = () => {
+      recognizing = false;
+      // Kwam het laatste stukje nooit definitief binnen, bewaar dan wat er al herkend was.
+      if (lastInterim) { appendSpoken(lastInterim); lastInterim = ''; }
       $('interim').textContent = '';
       if (listening) setTimeout(() => { if (listening) startRecognition(); }, 150);
       else renderMic();
     };
-    try { recognition.start(); } catch { /* al gestart */ }
+    try { recognition.start(); recognizing = true; } catch { /* al gestart */ }
+  }
+
+  // Stopt de opname en wacht tot de herkenner klaar is, zodat alle gesproken tekst in het veld staat.
+  function finishListening() {
+    if (!listening) return Promise.resolve();
+    const current = recognition;
+    const wasRecognizing = recognizing;
+    return new Promise((resolve) => {
+      if (!wasRecognizing) { stopListening(); resolve(); return; }
+      const timer = setTimeout(resolve, 3000);
+      current.addEventListener('end', () => { clearTimeout(timer); resolve(); }, { once: true });
+      stopListening();
+    });
   }
 
   function renderMic() {
