@@ -21,13 +21,14 @@
   };
 
   // Map, werkadres en label horen bij het ingelogde account; elke gebruiker heeft zijn eigen instellingen.
-  const settings = { vaultId: '', vaultPath: '', workEmail: '', tag: 'brain', lang: 'nl-NL' };
+  const settings = { vaultId: '', vaultPath: '', workEmail: '', tag: 'brain', dateInSubject: false, lang: 'nl-NL' };
   const userKey = (key) => key + '.' + (account ? account.homeAccountId : 'anon');
   function loadUserSettings() {
     settings.vaultId = store.get(userKey('vaultId'), '');       // id van de gekozen OneDrive-map
     settings.vaultPath = store.get(userKey('vaultPath'), '');   // leesbaar pad, alleen voor weergave
     settings.workEmail = store.get(userKey('workEmail'), '');
     settings.tag = store.get(userKey('tag'), 'brain');          // label vooraan in het mailonderwerp
+    settings.dateInSubject = store.get(userKey('dateInSubject'), '') === '1';
   }
 
   // ---------- status ----------
@@ -201,7 +202,7 @@
     const name = date + ' ' + pad(d.getHours()) + pad(d.getMinutes()) + ' ' + title;
     const created = date + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
     const markdown = '---\ncreated: ' + created + '\nsource: snelle-notitie\ntags:\n  - inbox\n---\n\n' + text + '\n';
-    return { name, markdown };
+    return { name, title, markdown };
   }
 
   async function sendPrive(text, token) {
@@ -225,7 +226,7 @@
     const note = buildNote(text);
     const mail = {
       message: {
-        subject: '[' + (settings.tag || 'brain') + '] ' + note.name,
+        subject: '[' + (settings.tag || 'brain') + '] ' + (settings.dateInSubject ? note.name : note.title),
         body: { contentType: 'Text', content: text },
         toRecipients: [{ emailAddress: { address: settings.workEmail } }]
       },
@@ -441,14 +442,18 @@
   }
 
   function renderLabelHint() {
-    $('labelHint').textContent = 'Het onderwerp van elke werkmail begint met [' +
-      (cleanTag($('tag').value) || 'brain') + ']. Daarop kun je op je werk filteren.';
+    const label = '[' + (cleanTag($('tag').value) || 'brain') + ']';
+    const d = new Date();
+    const stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + ' ' + pad(d.getHours()) + pad(d.getMinutes()) + ' ';
+    $('labelHint').textContent = 'Het onderwerp wordt bijvoorbeeld: ' + label + ' ' +
+      ($('dateInSubject').checked ? stamp : '') + 'Offerte klant X. Op ' + label + ' kun je op je werk filteren.';
   }
 
   function openSettings(tab) {
     renderVaultPath();
     $('workEmail').value = settings.workEmail;
     $('tag').value = settings.tag;
+    $('dateInSubject').checked = settings.dateInSubject;
     renderLabelHint();
     showTab(tab || dest);
     $('settings').showModal();
@@ -475,6 +480,11 @@
     renderLabelHint();
   });
   $('tag').addEventListener('blur', () => { $('tag').value = settings.tag; });
+  $('dateInSubject').addEventListener('change', () => {
+    settings.dateInSubject = $('dateInSubject').checked;
+    store.set(userKey('dateInSubject'), settings.dateInSubject ? '1' : '');
+    renderLabelHint();
+  });
   $('logoutAsk').onclick = () => askLogout(true);
   $('logoutNo').onclick = () => askLogout(false);
   $('logoutYes').onclick = logout;

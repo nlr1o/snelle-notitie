@@ -101,7 +101,7 @@
   .dlg-head h2 { margin: 0; }
   .tabs { background: var(--bg); }
   /* Vaste hoogte: wisselen van tab verschuift de knoppen eronder niet. */
-  .panel { min-height: 262px; padding-top: 6px; }
+  .panel { min-height: 318px; padding-top: 6px; }
   .panel .intro { margin: 8px 0 0; font-size: 14px; color: var(--muted); }
   .general { border-top: 1px solid var(--line); margin-top: 14px; padding-top: 2px; }
   .done { width: 100%; margin-top: 16px; padding: 14px; border-radius: 12px; font-weight: 700;
@@ -115,6 +115,8 @@
   .account #logoutYes { border-color: var(--danger); color: var(--danger); }
   .account #logoutNo { color: var(--text); min-width: 100px; }
   .account .ask { flex: 1; color: var(--text); font-weight: 600; }
+  .check { display: flex; align-items: center; gap: 10px; margin: 14px 0 6px; font-size: 15px; color: var(--text); }
+  .check input { width: 22px; height: 22px; padding: 0; flex: none; accent-color: var(--accent); }
   .pathrow { display: flex; gap: 8px; align-items: stretch; }
   #vaultPathView, .box { flex: 1; min-width: 0; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
                    background: var(--bg); overflow-wrap: anywhere; font-size: 14px; }
@@ -207,6 +209,10 @@
 
       <label for="tag">Label</label>
       <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
+      <label class="check">
+        <input type="checkbox" id="dateInSubject">
+        <span>Datum en tijd in het onderwerp</span>
+      </label>
       <div class="hint" id="labelHint"></div>
     </div>
 
@@ -233,8 +239,8 @@
     </div>
   </dialog>
 
-  <script src="config.js?v=14"></script>
+  <script src="config.js?v=15"></script>
   <script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.39.0/lib/msal-browser.min.js"></script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
