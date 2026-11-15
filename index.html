@@ -96,10 +96,10 @@
 
   <div class="banner warn" id="setupBanner" hidden></div>
   <div class="banner" id="loginBanner" hidden>
-    Nog niet ingelogd bij Microsoft. <button id="login">Inloggen</button>
+    Log in met je Microsoft-account om notities te versturen. <button id="login">Inloggen</button>
   </div>
 
-  <input id="title" class="title" aria-label="Onderwerp" placeholder="Onderwerp (wordt voorgesteld uit je tekst)"
+  <input id="title" class="title" aria-label="Onderwerp" placeholder="Onderwerp (optioneel)"
          autocomplete="off" autocapitalize="sentences" maxlength="80" enterkeyhint="done">
 
   <div class="editor">
@@ -121,8 +121,8 @@
     <div class="hint">Pad vanaf de hoofdmap van OneDrive naar de Inbox van je vault.</div>
 
     <label for="workEmail">Werk-mailadres</label>
-    <input id="workEmail" type="email" autocomplete="off" placeholder="naam@werk.nl">
-    <div class="hint">Notities voor Werk worden hierheen gemaild met [brain] in het onderwerp.</div>
+    <input id="workEmail" type="email" autocomplete="off" placeholder="henk+werkbrain@werkdomein.nl">
+    <div class="hint">Notities voor Werk worden vanaf je eigen Microsoft-adres hierheen gemaild, met [brain] in het onderwerp. Een plus-adres maakt filteren op je werk makkelijk.</div>
 
     <label for="lang">Spraaktaal</label>
     <select id="lang">

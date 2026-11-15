@@ -82,8 +82,8 @@
   }
 
   function renderAccount() {
-    // Inloggen is alleen verplicht voor Privé; Werk kan zonder (via je mail-app).
-    $('loginBanner').hidden = !msalApp || !!account || dest !== 'prive';
+    // Inloggen is altijd verplicht: Privé schrijft naar je OneDrive, Werk mailt vanaf je eigen adres.
+    $('loginBanner').hidden = !msalApp || !!account;
     const el = $('account');
     el.textContent = '';
     if (!msalApp) return;
@@ -148,15 +148,10 @@
     return cleanTitle(text.replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' '), 50);
   }
 
-  // Het onderwerp volgt je tekst, totdat je het zelf aanpast. Maak je het leeg, dan volgt het weer.
-  let titleEdited = false;
-  function updateTitleSuggestion() {
-    if (!titleEdited) $('title').value = suggestTitle($('text').value);
-  }
-
   function buildNote(text) {
     const d = new Date();
     const date = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    // Onderwerp is optioneel: leeg gelaten, dan de eerste woorden van de notitie.
     const title = cleanTitle($('title').value, 80) || suggestTitle(text) || 'notitie';
     const name = date + ' ' + pad(d.getHours()) + pad(d.getMinutes()) + ' ' + title;
     const created = date + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
@@ -194,26 +189,15 @@
     return 'Gemaild naar je werkadres ✓';
   }
 
-  // Zonder Microsoft-login: open de mail-app met een vooraf ingevuld bericht.
-  function sendWerkViaMailApp(text) {
-    if (!settings.workEmail) { status('Vul eerst je werk-mailadres in bij Instellingen.', 'err'); return; }
-    const note = buildNote(text);
-    location.href = 'mailto:' + encodeURIComponent(settings.workEmail) +
-      '?subject=' + encodeURIComponent(TAG + ' ' + note.name) +
-      '&body=' + encodeURIComponent(text);
-    status('Je mail-app is geopend. Tik daar op verzenden; daarna kun je de tekst hier wissen.');
-  }
-
   let sending = false;
   async function send() {
     if (sending) return;
     const text = $('text').value.trim();
     if (!text) { status('Er staat nog geen tekst.', 'err'); return; }
     stopListening();
-    if (dest === 'werk' && !account) { sendWerkViaMailApp(text); return; }
     if (!msalApp) { status('De app is nog niet gekoppeld aan Microsoft.', 'err'); return; }
     if (!account) {
-      // Privé kan alleen met een Microsoft-login: stuur direct door en verzend daarna vanzelf.
+      // Zonder Microsoft-login kan er niets verzonden worden: stuur direct door en verzend daarna vanzelf.
       store.set('pendingSend', '1');
       status('Je moet eerst inloggen bij Microsoft. Je notitie blijft bewaard.');
       login();
@@ -227,7 +211,6 @@
       const message = dest === 'werk' ? await sendWerk(text, token) : await sendPrive(text, token);
       $('text').value = '';
       $('title').value = '';
-      titleEdited = false;
       saveDraft();
       status(message, 'ok');
       if (navigator.vibrate) navigator.vibrate(40);
@@ -243,7 +226,7 @@
   // ---------- concept bewaren ----------
   function saveDraft() {
     store.set('draft', $('text').value);
-    store.set('draftTitle', titleEdited ? $('title').value : '');
+    store.set('draftTitle', $('title').value);
   }
 
   // ---------- spraak naar tekst ----------
@@ -259,7 +242,6 @@
     if (!current.trim() || /[.!?]\s*$/.test(current)) fragment = fragment[0].toUpperCase() + fragment.slice(1);
     area.value = current + (current && !/\s$/.test(current) ? ' ' : '') + fragment;
     area.scrollTop = area.scrollHeight;
-    updateTitleSuggestion();
     saveDraft();
   }
 
@@ -345,18 +327,12 @@
   $('openSettings').onclick = openSettings;
   $('cancelSettings').onclick = () => $('settings').close();
   $('saveSettings').onclick = saveSettings;
-  $('text').addEventListener('input', () => { updateTitleSuggestion(); saveDraft(); });
-  $('title').addEventListener('input', () => {
-    titleEdited = $('title').value.trim() !== '';
-    saveDraft();
-  });
-  $('title').addEventListener('blur', updateTitleSuggestion);
+  $('text').addEventListener('input', saveDraft);
+  $('title').addEventListener('input', saveDraft);
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopListening(); });
 
   $('text').value = store.get('draft', '');
-  const savedTitle = store.get('draftTitle', '');
-  if (savedTitle) { $('title').value = savedTitle; titleEdited = true; }
-  updateTitleSuggestion();
+  $('title').value = store.get('draftTitle', '');
   setDest(new URLSearchParams(location.search).get('dest') || store.get('dest', 'prive'));
   initAuth();
 })();
