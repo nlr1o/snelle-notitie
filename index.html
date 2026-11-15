@@ -72,6 +72,9 @@
   label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
   input, select { width: 100%; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--line);
                   background: var(--bg); color: var(--text); font: inherit; }
+  input.title { background: var(--panel); border-radius: 14px; padding: 13px 14px; font-weight: 600; outline: 0; }
+  input.title:focus { border-color: var(--accent); }
+  input.title::placeholder { color: var(--muted); font-weight: 400; }
   .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
   .row { display: flex; gap: 10px; margin-top: 18px; }
   .row button { flex: 1; padding: 12px; border-radius: 10px; font-weight: 600; border: 1px solid var(--line); }
@@ -95,6 +98,9 @@
   <div class="banner" id="loginBanner" hidden>
     Nog niet ingelogd bij Microsoft. <button id="login">Inloggen</button>
   </div>
+
+  <input id="title" class="title" aria-label="Onderwerp" placeholder="Onderwerp (wordt voorgesteld uit je tekst)"
+         autocomplete="off" autocapitalize="sentences" maxlength="80" enterkeyhint="done">
 
   <div class="editor">
     <textarea id="text" placeholder="Typ of spreek je notitie in…" autocapitalize="sentences"></textarea>

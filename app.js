@@ -138,16 +138,27 @@
   // ---------- notitie opbouwen ----------
   const pad = (n) => String(n).padStart(2, '0');
 
-  function makeTitle(text) {
-    const words = text.replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' ');
-    const clean = words.replace(/[\\/:*?"<>|#^[\]%&{}~]/g, '').slice(0, 50).replace(/[.\s]+$/, '').trim();
-    return clean || 'notitie';
+  // Maakt een tekst geschikt als bestandsnaam en mailonderwerp.
+  function cleanTitle(value, max) {
+    return value.replace(/[\\/:*?"<>|#^[\]%&{}~]/g, ' ').replace(/\s+/g, ' ').trim()
+      .slice(0, max).replace(/[.,;\s]+$/, '').trim();
+  }
+
+  function suggestTitle(text) {
+    return cleanTitle(text.replace(/\s+/g, ' ').trim().split(' ').slice(0, 6).join(' '), 50);
+  }
+
+  // Het onderwerp volgt je tekst, totdat je het zelf aanpast. Maak je het leeg, dan volgt het weer.
+  let titleEdited = false;
+  function updateTitleSuggestion() {
+    if (!titleEdited) $('title').value = suggestTitle($('text').value);
   }
 
   function buildNote(text) {
     const d = new Date();
     const date = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-    const name = date + ' ' + pad(d.getHours()) + pad(d.getMinutes()) + ' ' + makeTitle(text);
+    const title = cleanTitle($('title').value, 80) || suggestTitle(text) || 'notitie';
+    const name = date + ' ' + pad(d.getHours()) + pad(d.getMinutes()) + ' ' + title;
     const created = date + 'T' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
     const markdown = '---\ncreated: ' + created + '\nsource: snelle-notitie\ntags:\n  - inbox\n---\n\n' + text + '\n';
     return { name, markdown };
@@ -215,6 +226,8 @@
       const token = await getToken();
       const message = dest === 'werk' ? await sendWerk(text, token) : await sendPrive(text, token);
       $('text').value = '';
+      $('title').value = '';
+      titleEdited = false;
       saveDraft();
       status(message, 'ok');
       if (navigator.vibrate) navigator.vibrate(40);
@@ -228,7 +241,10 @@
   }
 
   // ---------- concept bewaren ----------
-  function saveDraft() { store.set('draft', $('text').value); }
+  function saveDraft() {
+    store.set('draft', $('text').value);
+    store.set('draftTitle', titleEdited ? $('title').value : '');
+  }
 
   // ---------- spraak naar tekst ----------
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -243,6 +259,7 @@
     if (!current.trim() || /[.!?]\s*$/.test(current)) fragment = fragment[0].toUpperCase() + fragment.slice(1);
     area.value = current + (current && !/\s$/.test(current) ? ' ' : '') + fragment;
     area.scrollTop = area.scrollHeight;
+    updateTitleSuggestion();
     saveDraft();
   }
 
@@ -328,10 +345,18 @@
   $('openSettings').onclick = openSettings;
   $('cancelSettings').onclick = () => $('settings').close();
   $('saveSettings').onclick = saveSettings;
-  $('text').addEventListener('input', saveDraft);
+  $('text').addEventListener('input', () => { updateTitleSuggestion(); saveDraft(); });
+  $('title').addEventListener('input', () => {
+    titleEdited = $('title').value.trim() !== '';
+    saveDraft();
+  });
+  $('title').addEventListener('blur', updateTitleSuggestion);
   document.addEventListener('visibilitychange', () => { if (document.hidden) stopListening(); });
 
   $('text').value = store.get('draft', '');
+  const savedTitle = store.get('draftTitle', '');
+  if (savedTitle) { $('title').value = savedTitle; titleEdited = true; }
+  updateTitleSuggestion();
   setDest(new URLSearchParams(location.search).get('dest') || store.get('dest', 'prive'));
   initAuth();
 })();
