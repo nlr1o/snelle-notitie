@@ -230,7 +230,8 @@
         body: { contentType: 'Text', content: text },
         toRecipients: [{ emailAddress: { address: settings.workEmail } }]
       },
-      saveToSentItems: true
+      // Geen kopie in Verzonden items: werkinformatie hoort niet in je privé-mailbox te blijven staan.
+      saveToSentItems: false
     };
     await graph('POST', '/me/sendMail', token, JSON.stringify(mail), 'application/json');
     return 'Verstuurd naar ' + settings.workEmail + ' ✓';
