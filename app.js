@@ -32,10 +32,14 @@
   }
 
   // ---------- status ----------
+  // Succesmeldingen verdwijnen na 4 seconden; foutmeldingen en meldingen als "Luistert…" blijven staan.
+  let statusTimer = null;
   function status(message, kind) {
     const el = $('status');
     el.textContent = message || '';
     el.className = kind || '';
+    clearTimeout(statusTimer);
+    if (kind === 'ok') statusTimer = setTimeout(() => { el.textContent = ''; el.className = ''; }, 4000);
   }
 
   // ---------- bestemming ----------
