@@ -38,6 +38,7 @@
     $('destWerk').setAttribute('aria-pressed', String(dest === 'werk'));
     $('send').textContent = dest === 'werk' ? 'Verzend naar Werk' : 'Verzend naar Privé';
     store.set('dest', dest);
+    renderAccount();
   }
 
   // ---------- inloggen bij Microsoft ----------
@@ -65,17 +66,24 @@
       cache: { cacheLocation: 'localStorage' }
     });
     if (typeof msalApp.initialize === 'function') await msalApp.initialize();
+    let cameFromLogin = false;
     try {
       const result = await msalApp.handleRedirectPromise();
+      cameFromLogin = !!result;
       account = (result && result.account) || msalApp.getAllAccounts()[0] || null;
     } catch (e) {
       status('Inloggen mislukt: ' + (e.errorMessage || e.message), 'err');
     }
     renderAccount();
+    // Was je halverwege het verzenden naar de inlogpagina gestuurd? Dan maken we het nu af.
+    const pending = store.get('pendingSend', '');
+    store.set('pendingSend', '');
+    if (pending && cameFromLogin && account) send();
   }
 
   function renderAccount() {
-    $('loginBanner').hidden = !msalApp || !!account;
+    // Inloggen is alleen verplicht voor Privé; Werk kan zonder (via je mail-app).
+    $('loginBanner').hidden = !msalApp || !!account || dest !== 'prive';
     const el = $('account');
     el.textContent = '';
     if (!msalApp) return;
@@ -102,6 +110,7 @@
     } catch (e) {
       if (e instanceof msal.InteractionRequiredAuthError) {
         saveDraft();
+        store.set('pendingSend', '1');
         status('Je moet opnieuw inloggen. Je notitie blijft bewaard.');
         await msalApp.acquireTokenRedirect({ scopes: SCOPES, account });
       }
@@ -174,14 +183,31 @@
     return 'Gemaild naar je werkadres ✓';
   }
 
+  // Zonder Microsoft-login: open de mail-app met een vooraf ingevuld bericht.
+  function sendWerkViaMailApp(text) {
+    if (!settings.workEmail) { status('Vul eerst je werk-mailadres in bij Instellingen.', 'err'); return; }
+    const note = buildNote(text);
+    location.href = 'mailto:' + encodeURIComponent(settings.workEmail) +
+      '?subject=' + encodeURIComponent(TAG + ' ' + note.name) +
+      '&body=' + encodeURIComponent(text);
+    status('Je mail-app is geopend. Tik daar op verzenden; daarna kun je de tekst hier wissen.');
+  }
+
   let sending = false;
   async function send() {
     if (sending) return;
     const text = $('text').value.trim();
     if (!text) { status('Er staat nog geen tekst.', 'err'); return; }
-    if (!msalApp) { status('De app is nog niet gekoppeld aan Microsoft.', 'err'); return; }
-    if (!account) { status('Log eerst in bij Microsoft.', 'err'); return; }
     stopListening();
+    if (dest === 'werk' && !account) { sendWerkViaMailApp(text); return; }
+    if (!msalApp) { status('De app is nog niet gekoppeld aan Microsoft.', 'err'); return; }
+    if (!account) {
+      // Privé kan alleen met een Microsoft-login: stuur direct door en verzend daarna vanzelf.
+      store.set('pendingSend', '1');
+      status('Je moet eerst inloggen bij Microsoft. Je notitie blijft bewaard.');
+      login();
+      return;
+    }
     sending = true;
     $('send').disabled = true;
     status('Bezig met verzenden…');
