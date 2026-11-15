@@ -439,6 +439,11 @@
     renderVaultPath();
     $('workEmail').value = settings.workEmail;
     $('tag').value = settings.tag;
+    // Het adres waarmee je bent ingelogd staat vast; alleen het label ertussen is aanpasbaar.
+    const own = account ? account.username : '';
+    const at = own.lastIndexOf('@');
+    $('tagPrefix').textContent = (at > 0 ? own.slice(0, at).split('+')[0] : own) + '+';
+    $('tagSuffix').textContent = at > 0 ? own.slice(at) : '';
     $('lang').value = settings.lang;
     renderSenderPreview();
     $('settings').showModal();

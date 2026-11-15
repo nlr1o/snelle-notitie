@@ -100,7 +100,16 @@
                    background: var(--bg); overflow-wrap: anywhere; font-size: 14px; }
   #browse { padding: 0 14px; border-radius: 10px; border: 1px solid var(--accent); color: var(--accent);
             font-weight: 600; white-space: nowrap; }
-  #logout { padding: 0 14px; border-radius: 10px; border: 1px solid var(--danger); color: var(--danger);
+  /* Je eigen adres staat vast; alleen het stukje achter de + is een invoerveld. */
+  .compose { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 10px;
+             background: var(--bg); padding: 0 12px; }
+  .compose:focus-within { border-color: var(--accent); }
+  .compose span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                  max-width: 42%; user-select: none; font-size: 14px; }
+  .compose input { flex: 1; min-width: 88px; border: 0; outline: 0; background: transparent; padding: 11px 2px;
+                   font-size: 14px; font-weight: 600; }
+  #accountName { flex: 1; min-width: 0; align-self: center; font-size: 14px; overflow-wrap: anywhere; }
+  #logout { padding: 10px 14px; border-radius: 10px; border: 1px solid var(--danger); color: var(--danger);
             font-weight: 600; white-space: nowrap; }
 
   #crumbs { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; margin-bottom: 8px; }
@@ -173,8 +182,12 @@
     <input id="workEmail" type="email" autocomplete="off" inputmode="email">
     <div class="hint">Notities voor Werk worden naar dit adres gemaild.</div>
 
-    <label for="tag">Label voor de afzender (komt achter de +)</label>
-    <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
+    <label for="tag">Label</label>
+    <div class="compose">
+      <span id="tagPrefix"></span>
+      <input id="tag" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="30">
+      <span id="tagSuffix"></span>
+    </div>
     <div class="hint" id="senderPreview"></div>
 
     <label for="lang">Spraaktaal</label>
@@ -185,7 +198,7 @@
 
     <div class="label">Account</div>
     <div class="pathrow">
-      <div id="accountName" class="box"></div>
+      <div id="accountName"></div>
       <button id="logout">Uitloggen</button>
     </div>
 
